@@ -1,0 +1,1 @@
+ALTER TABLE `offers` ADD `status` text DEFAULT 'available' NOT NULL;

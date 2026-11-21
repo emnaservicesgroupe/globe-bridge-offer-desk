@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1795105016885,
+      "tag": "0000_fearless_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1795105411368,
+      "tag": "0001_magical_runaways",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795105835764,
+      "tag": "0002_complete_expediter",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795112836552,
+      "tag": "0003_square_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795116593486,
+      "tag": "0004_flaky_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795116866617,
+      "tag": "0005_wise_terrax",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795174740684,
+      "tag": "0006_living_cobalt_man",
+      "breakpoints": true
+    }
+  ]
+}

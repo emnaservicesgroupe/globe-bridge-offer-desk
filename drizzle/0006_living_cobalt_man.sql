@@ -1,0 +1,1 @@
+ALTER TABLE `offers` ADD `calendly_url` text;
