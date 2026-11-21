@@ -1,6 +1,6 @@
 # Globe Bridge Offer Desk
 
-The staff recruitment dashboard runs on Next.js on Vercel. Offer records stay in Cloudflare D1 and offer letters and demonstration videos stay in private R2. The production build works without credentials. Staff access requires the settings below.
+The recruitment dashboard runs on Next.js on Vercel. Offer records stay in Cloudflare D1 and offer letters and demonstration videos stay in private R2. The production build works without credentials. Anyone can view listings and add offers without signing in. Staff sign-in at /api/auth/login grants access to existing attachments, and the owner can manage offers.
 
 ## Vercel project
 

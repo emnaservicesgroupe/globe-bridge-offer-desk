@@ -7,9 +7,9 @@ export const dynamic="force-dynamic";
 
 const fail=(error:string,status:number)=>Response.json({error},{status});
 export async function GET(){
- const u=await getUser(); if(!u)return fail("Sign in required",401);
+ const u=await getUser();
  const rows=await getDb().select().from(offers).orderBy(desc(offers.created));
- return Response.json({rows,editor:u.email.toLowerCase()===ownerEmail()},{headers:{"Cache-Control":"private, no-store"}});
+ return Response.json({rows,editor:!!u&&u.email.toLowerCase()===ownerEmail()},{headers:{"Cache-Control":"private, no-store"}});
 }
 async function authorize(req:Request){
  const u=await getUser();if(!u || u.email!==ownerEmail())return fail("Owner access required",403);
@@ -17,7 +17,10 @@ async function authorize(req:Request){
  return null;
 }
 async function save(req:Request,editing:boolean){
- const denied=await authorize(req); if(denied)return denied;
+ if(editing){
+   const denied=await authorize(req);
+   if(denied)return denied;
+ }else if(req.headers.get("origin")!==new URL(req.url).origin)return fail("Invalid origin",403);
  const f=await req.formData(), value=(k:string)=>String(f.get(k)??"").trim();
  const role=value("role"),company=value("company"),needed=Number(value("needed")),url=value("url"),body=value("body");
  const offerDate=value("offerDate");
