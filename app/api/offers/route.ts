@@ -1,18 +1,18 @@
-import {env} from "cloudflare:workers";
-import {getChatGPTUser} from "../../chatgpt-auth";
+import {readUpload, removeObject, saveObject} from "../../server/storage";
+import {getUser, ownerEmail} from "../../server/session";
 import {getDb} from "../../../db";
 import {offers} from "../../../db/schema";
 import {and,eq,desc} from "drizzle-orm";
 export const dynamic="force-dynamic";
-const owner = (env as typeof env & { OFFER_DESK_OWNER_EMAIL?: string }).OFFER_DESK_OWNER_EMAIL?.trim().toLowerCase() || "";
+
 const fail=(error:string,status:number)=>Response.json({error},{status});
 export async function GET(){
- const u=await getChatGPTUser(); if(!u)return fail("Sign in required",401);
+ const u=await getUser(); if(!u)return fail("Sign in required",401);
  const rows=await getDb().select().from(offers).orderBy(desc(offers.created));
- return Response.json({rows,editor:u.email.toLowerCase()===owner},{headers:{"Cache-Control":"private, no-store"}});
+ return Response.json({rows,editor:u.email.toLowerCase()===ownerEmail()},{headers:{"Cache-Control":"private, no-store"}});
 }
 async function authorize(req:Request){
- const u=await getChatGPTUser();if(!u || !owner || u.email.toLowerCase()!==owner)return fail("Owner access required",403);
+ const u=await getUser();if(!u || u.email!==ownerEmail())return fail("Owner access required",403);
  if(req.headers.get("origin")!==new URL(req.url).origin)return fail("Invalid origin",403);
  return null;
 }
@@ -44,6 +44,14 @@ async function save(req:Request,editing:boolean){
  if(jobCountry && jobCountry.length>100)return fail("Country must fit within 100 characters.",400);
  const location=value("candidateLocation")||prior?.candidateLocation||null;
  if(location!==null&&!["inside","outside"].includes(location))return fail("Choose a candidate location.",400);
+ const staged: string[] = [];
+ for (const kind of ["video", "file"] as const) {
+   const key = value(kind + "Upload");
+   if (!key) continue;
+   try { f.set(kind, await readUpload(kind, key, value(kind + "Name"))); }
+   catch { return fail("Attachment unavailable. Select it again and retry.", 400); }
+   staged.push(key);
+ }
  const media=f.get("video");
  const video=media instanceof File&&media.size>0?media:null;
  let mime="";
@@ -65,19 +73,20 @@ async function save(req:Request,editing:boolean){
  const uploaded:string[]=[];
  const fields={calendlyUrl,jobCountry,videoKey,candidateLocation:location,offerDate:f.has("offerDate")?(offerDate||null):(prior?.offerDate??null),role,company,needed,url,body,salary,fileKey,letter:pdf?.name??prior?.letter??""};
  try{
-   if(pdf){await env.BUCKET!.put(fileKey!,await pdf.arrayBuffer());uploaded.push(fileKey!)}
-   if(video){await env.BUCKET!.put(videoKey!,video.stream(),{httpMetadata:{contentType:mime}});uploaded.push(videoKey!)}
+   if(pdf){await saveObject(fileKey!,pdf,"application/pdf");uploaded.push(fileKey!)}
+   if(video){await saveObject(videoKey!,video,mime);uploaded.push(videoKey!)}
    if(prior){
      const updated=await db.update(offers).set({...fields,revision:revision+1})
        .where(and(eq(offers.id,id),eq(offers.revision,revision))).returning({id:offers.id});
      if(!updated.length){
-       if(uploaded.length)await env.BUCKET!.delete(uploaded);
+       if(uploaded.length)await Promise.all(uploaded.map(removeObject));
        return fail("Offer changed. Reopen it before editing.",409);
      }
    }else await db.insert(offers).values({...fields,id,created,day});
- }catch(e){if(uploaded.length)await env.BUCKET!.delete(uploaded);throw e}
- if(prior?.videoKey&&video)await env.BUCKET!.delete(prior.videoKey);
- if(prior?.letter&&pdf)await env.BUCKET!.delete(prior.fileKey??id);
+ }catch(e){if(uploaded.length)await Promise.all(uploaded.map(removeObject));throw e}
+ await Promise.allSettled(staged.map(removeObject));
+ if(prior?.videoKey&&video)await removeObject(prior.videoKey);
+ if(prior?.letter&&pdf)await removeObject(prior.fileKey??id);
  return Response.json({id},{status:editing?200:201});
 }
 export async function POST(req:Request){return save(req,false)}
@@ -101,7 +110,7 @@ export async function DELETE(req:Request){
  const deleted=await getDb().delete(offers).where(and(eq(offers.id,params.get("id")??""),eq(offers.revision,Number(params.get("revision"))))).returning();
  if(!deleted.length)return fail("Offer changed or was removed. Reopen the offer.",409);
  const row=deleted[0];
- if(row.videoKey)await env.BUCKET!.delete(row.videoKey);
- if(row.letter)await env.BUCKET!.delete(row.fileKey??row.id);
+ if(row.videoKey)await removeObject(row.videoKey);
+ if(row.letter)await removeObject(row.fileKey??row.id);
  return new Response(null,{status:204});
 }
