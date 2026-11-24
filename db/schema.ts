@@ -5,7 +5,7 @@ export const offers = sqliteTable("offers", {
  calendlyUrl:text("calendly_url"),
  status:text("status").notNull().default("available"),
  jobCountry:text("job_country"),
- candidateLocation:text("candidate_location"), videoKey:text("video_key"),
+ candidateLocation:text("candidate_location"), videoKey:text("video_key"), photoKey:text("photo_key"),
  offerDate:text("offer_date"),
  salary:text("salary").notNull().default(""), revision:integer("revision").notNull().default(1), fileKey:text("file_key"),
  letter:text("letter").notNull(), day:text("day").notNull(),created:text("created").notNull(),

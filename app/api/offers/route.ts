@@ -55,6 +55,16 @@ async function save(req:Request,editing:boolean){
    catch { return fail("Attachment unavailable. Select it again and retry.", 400); }
    staged.push(key);
  }
+ const image = f.get("photo");
+ const photo = image instanceof File && image.size > 0 ? image : null;
+ let photoType = "";
+ if (photo) {
+   if (photo.size > 8 * 1024 * 1024) return fail("Choose a photo up to 8 MB.",400);
+   const bytes = new Uint8Array(await photo.slice(0,8).arrayBuffer());
+   if ([0xff,0xd8,0xff].every((byte,i)=>bytes[i]===byte)) photoType = "image/jpeg";
+   else if ([137,80,78,71,13,10,26,10].every((byte,i)=>bytes[i]===byte)) photoType = "image/png";
+   else return fail("Choose a JPG or PNG photo.",400);
+ }
  const media=f.get("video");
  const video=media instanceof File&&media.size>0?media:null;
  let mime="";
@@ -68,14 +78,16 @@ async function save(req:Request,editing:boolean){
  const file=f.get("file"), pdf=file instanceof File && file.size>0?file:null;
  if(!role||!company||role.length>180||company.length>180||!Number.isSafeInteger(needed)||needed<1||needed>100000||body.length>100000||url.length>3000)return fail("Check the role, company, candidate count and offer length.",400);
  if(url){try{if(!["https:","http:"].includes(new URL(url).protocol))throw Error()}catch{return fail("Enter a valid offer link.",400)}}
- if(!calendlyUrl&&!url&&!body&&!pdf&&!prior?.letter&&!video&&!prior?.videoKey)return fail("Add offer text, a link, PDF or demonstration video.",400);
+ if(!calendlyUrl&&!url&&!body&&!pdf&&!prior?.letter&&!video&&!prior?.videoKey&&!photo&&!prior?.photoKey)return fail("Add offer text, a link, photo, PDF or demonstration video.",400);
  if(pdf&&(pdf.size>10*1024*1024||await pdf.slice(0,5).text()!=="%PDF-"))return fail("Choose a PDF up to 10 MB.",400);
  const id=prior?.id??crypto.randomUUID(),created=new Date().toISOString(),day=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Tirane",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(created));
  const fileKey=pdf?crypto.randomUUID():prior?.fileKey??null;
  const videoKey=video?"videos/"+crypto.randomUUID():prior?.videoKey??null;
+ const photoKey=photo?"photos/"+crypto.randomUUID():prior?.photoKey??null;
  const uploaded:string[]=[];
- const fields={calendlyUrl,jobCountry,videoKey,candidateLocation:location,offerDate:f.has("offerDate")?(offerDate||null):(prior?.offerDate??null),role,company,needed,url,body,salary,fileKey,letter:pdf?.name??prior?.letter??""};
+ const fields={photoKey,calendlyUrl,jobCountry,videoKey,candidateLocation:location,offerDate:f.has("offerDate")?(offerDate||null):(prior?.offerDate??null),role,company,needed,url,body,salary,fileKey,letter:pdf?.name??prior?.letter??""};
  try{
+   if(photo){await saveObject(photoKey!,photo,photoType);uploaded.push(photoKey!)}
    if(pdf){await saveObject(fileKey!,pdf,"application/pdf");uploaded.push(fileKey!)}
    if(video){await saveObject(videoKey!,video,mime);uploaded.push(videoKey!)}
    if(prior){
@@ -88,6 +100,7 @@ async function save(req:Request,editing:boolean){
    }else await db.insert(offers).values({...fields,id,created,day});
  }catch(e){if(uploaded.length)await Promise.all(uploaded.map(removeObject));throw e}
  await Promise.allSettled(staged.map(removeObject));
+ if(prior?.photoKey&&photo)await removeObject(prior.photoKey);
  if(prior?.videoKey&&video)await removeObject(prior.videoKey);
  if(prior?.letter&&pdf)await removeObject(prior.fileKey??id);
  return Response.json({id},{status:editing?200:201});
@@ -113,6 +126,7 @@ export async function DELETE(req:Request){
  const deleted=await getDb().delete(offers).where(and(eq(offers.id,params.get("id")??""),eq(offers.revision,Number(params.get("revision"))))).returning();
  if(!deleted.length)return fail("Offer changed or was removed. Reopen the offer.",409);
  const row=deleted[0];
+ if(row.photoKey)await removeObject(row.photoKey);
  if(row.videoKey)await removeObject(row.videoKey);
  if(row.letter)await removeObject(row.fileKey??row.id);
  return new Response(null,{status:204});
